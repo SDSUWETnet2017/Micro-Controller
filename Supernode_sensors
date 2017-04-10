@@ -2,6 +2,11 @@
 //Engineer: Alven Eusantos, Jeremey Lee, Matthew Salvino
 //3/13/17
 
+//rev 2 not working
+
+
+
+
 // FBS
 #pragma config BWRP = OFF               // Boot Segment Write Protect (Disabled) with thug life
 #pragma config BSS = OFF                // Boot segment Protect (No boot flash segment)
@@ -62,14 +67,14 @@
 
 //Initialize child functions
 void SendAverageAirQuality(void);
-void ClearArray(void);
-void GetAverage(void);
+void ClearData(void);
+unsigned int GetAverage();
 void I2CStart(void);
 void getAngle(void);
 void setDirection(void);
-void airUART(uint16_t);
+//void airUART(uint16_t);
 unsigned int MPH_Average(unsigned int mph_calc[120]);
-void SendUART(unsigned int MPH, unsigned int gust, uint16_t ANGLE, volatile uint16_t airQuality);
+//void SendUART(unsigned int MPH, unsigned int gust, uint16_t ANGLE, volatile uint16_t airQuality);
 void checkHighFlag();
 //char *itoa(char *buffer, unsigned int i); 
 float MPH_Calculate(void);
@@ -101,6 +106,8 @@ int CheckAirQuality = 0;
 //Global Variables Radio and Console//
 int new_data = 0;
 char RX_char = 0;
+//uint32_t count = 0;
+bool new_word = 0;
 
 //Wind Vane Global Variables
 uint16_t ANGLE;  
@@ -141,17 +148,17 @@ int output_counter = 0;
 volatile unsigned int pulses = 0;
 //volatile unsigned int time[120] = {0};
 volatile unsigned int sample_count = 0;
-volatile unsigned int second_flag = 0;
 volatile unsigned int calc_flag = 0;
 volatile unsigned int countSpeed = 0;
 
 //UARTSend global variables
-volatile int airQualityReady;
-volatile int windSpeedReady;
-volatile int windDirectionReady;
 volatile uint16_t airQuality;
 
-            
+//Counting Flags
+volatile uint16_t clock = 0;
+volatile uint16_t cycleTime = 3000; //seconds times 100
+volatile bool endCycle = 0;
+volatile bool ADC_ON = false;
 void I2C_Master_Init(const unsigned long c)
 {
     SSP1CON1 =0b0000000000101000; //SSPM mater node, no collision, no overflow,  Enables the serial port and configures the SDAx and SCLx pins as the serial port pins  
@@ -226,36 +233,57 @@ void Read(unsigned q,unsigned w,unsigned e)
     I2C_Master_Write(e); // 7 bits + read (+1)
 }
 
-
-void main()
+//Initialize TIMER1
+void TMR1_INIT(void)
 {
-    //Air Pollutant Sensor Pin Select
-    TRISAbits.TRISA0 = 1; //Use RA0 as input
-    ANSAbits.ANSA0 = 1; //Analog input = AN0
     
-    //Anemometer Pin Select
-    TRISBbits.TRISB15 = 1;
-    ANSBbits.ANSB15 = 0;
-    
-    //Wind Vane Pin Select
-    TRISBbits.TRISB8 = 1;      //SCL. Set as input. (SCL1) (RB8)
-    TRISBbits.TRISB9 = 1;      //SDA. Set as input.  (SDA1) (RB9)
-  
+    T1CONbits.TCS = 1;
+    T1CONbits.T1ECS = 0b10;
+    T1CONbits.TCKPS = 0;
+    PR1 = 310;
+}
+//Initialize Timer 3
+void TMR3_INIT(void)
+{
+    T3CON = 0b0000000010000101;
+    TMR3 = 0;
+}
+//Initialize ADC
+void ADC_INIT(void)
+{
     AD1CON1bits.FORM = 0b00; //Output of ADC is an integer: 0b---- --xx xxxx xxxx
     AD1CON1bits.SSRC = 0b000; //Clearing SAMP bit ends sampling and begins conversion
     AD1CON1bits.ADSIDL = 1; //Discontinue operation in idle mode
     AD1CON1bits.ASAM = 0; //Sampling begins when SAMP bit is set
     
     AD1CON3bits.ADRC = 0b0; //Clock derived from system clock
-    AD1CON3bits.SAMC = 0b11111; //Auto sample time bits = T_AD
+    AD1CON3bits.SAMC = 0b00001; //Auto sample time bits = T_AD
     AD1CON3bits.ADCS = 0b111111;
       
     AD1CHSbits.CH0NA = 0; //Negative reference voltage at VR-
     AD1CHSbits.CH0SA = 0b0000; //Positive input select for MUXA is AN0
-    
     AD1CSSL = 0; // No inputs are scanned.
+}
+//Initialize interrupts
+void ISR_INIT(void)
+{
     IFS0bits.AD1IF = 0; // Clear A/D conversion interrupt.
-      
+    INTCON1bits.NSTDIS = 1; //Disable nested interrupts
+    IPC1bits.T2IP = 0b110;
+    IPC3bits.AD1IP = 0b111;
+    IPC6bits.T4IP = 0b100;
+    IFS0bits.T1IF = 0;
+    IEC0bits.T1IE = 1;
+ /*   IFS0bits.T2IF = 0; //Clear Timer2 interrupt flag
+    IFS1bits.T4IF = 0; //clear timer 4 flag
+    
+    IEC0bits.T2IE = 1; //Enable Timer2 interrupt
+    IEC1bits.T4IE = 1; //enable timer 4 interrupt*/ 
+}
+/*
+//Initialize UART2
+void UART2_INIT(void)
+{
     U2MODEbits.UARTEN = 1;//enable UART
     U2MODEbits.USIDL = 0; // continue operation in idle mode
     U2MODEbits.STSEL = 0; // 1 stop bit
@@ -284,63 +312,120 @@ void main()
      
     U2BRG = 51 ; // 3.340277778
     
-    T2CONbits.TMR2ON = 1; //Turn on Timer 2
-    T2CONbits.T2CKPS0 = 1; //Set prescaler to 16
-    T2CONbits.T2CKPS1 = 1;
-    PR2 = 10050;   //(2/Fosc)*post*pre_(PR2+1) = Time   (2/8M)*16*(31250+1) = 2 sec
-    
-    T3CON = 0b0000000010000101;
-    TMR3 = 0;
-    
-    T4CONbits.T4OUTPS0 = 1; //Postscaler 16
-    T4CONbits.T4OUTPS1 = 1;
-    T4CONbits.T4OUTPS2 = 1;
-    T4CONbits.T4OUTPS3 = 1;
-    T4CONbits.T4CKPS = 0b10; //prescaler 16
-    T4CONbits.TMR4ON = 1; //on
-    PR4 = 65535;
-    TMR4 = 0;
-    
-    INTCON1bits.NSTDIS = 1; //Disable nested interrupts
-    IPC1bits.T2IP = 0b110;
-    IPC3bits.AD1IP = 0b111;
-    IPC6bits.T4IP = 0b100;
-    IFS0bits.T2IF = 0; //Clear Timer2 interrupt flag
-    IFS1bits.T4IF = 0; //clear timer 4 flag
-    
-    IEC0bits.T2IE = 1; //Enable Timer2 interrupt
-    IEC1bits.T4IE = 1; //enable timer 4 interrupt 
+}/*
 
+//Initializes inputs and outputs
+/*void IO_INIT(void)
+{
+    //Air Pollutant Sensor Pin Select
+    TRISAbits.TRISA0 = 1; //Use RA0 as input
+    ANSAbits.ANSA0 = 1; //Analog input = AN0
+    
+    //Anemometer Pin Select
+    TRISBbits.TRISB15 = 1;
+    ANSBbits.ANSB15 = 0;
+    
+    //Wind Vane Pin Select
+    TRISBbits.TRISB8 = 1;      //SCL. Set as input. (SCL1) (RB8)
+    TRISBbits.TRISB9 = 1;      //SDA. Set as input.  (SDA1) (RB9)
+    
+}*/
+
+void main()
+{
+    //Air Pollutant Sensor Pin Select
+    TRISAbits.TRISA0 = 1; //Use RA0 as input
+    ANSAbits.ANSA0 = 1; //Analog input = AN0
+    
+    //Anemometer Pin Select
+    TRISBbits.TRISB15 = 1;
+    ANSBbits.ANSB15 = 0;
+    
+    //Wind Vane Pin Select
+    TRISBbits.TRISB8 = 1;      //SCL. Set as input. (SCL1) (RB8)
+    TRISBbits.TRISB9 = 1;      //SDA. Set as input.  (SDA1) (RB9)
+   // IO_INIT();
+
+    
+    
+    ADC_INIT();
+    //UART2_INIT();
+    TMR1_INIT();
+    ISR_INIT();   
+    RadioINIT();
+    CONSOLE_INIT();
+    CONSOLE_PutString((char *)"\n\n\n\rCONSOLE INIT ");
+    TMR3_INIT();
     I2C_Master_Init(100000);
     
-    unsigned int MPH[120] = {0};
+    
+    
+    unsigned int MPH[100] = {0};
     unsigned int mphAverage = 0;
     unsigned int gust = 0;
+    unsigned int airQuality_send = 0;
+    //Radio and Console Initialize Variables
+    char RXmsg[255];//initialize a string to hold values from radio & local sensors
+    char localData[255];
+    uint8_t i = 0;
+    //put console and radio init here
+    
     while (1)
     { 
         
-        if(windDirectionReady != 1)
+        if(!endCycle)
         {
+            CONSOLE_PutString((char *)"\n\rIn I2Cstart ");
             I2CStart();
         }
-        
+        if(ADC_ON == TRUE)
+        {
+            CONSOLE_PutString((char *)"\n\rIn ADC ON ");
+            AD1CON1bits.SAMP = 0; // End A/D sampling and start conversion
+        }
         if(calc_flag == 1)
         {
+           CONSOLE_PutString((char *)"\n\rCALC FLAG ");
            MPH[countSpeed] = MPH_Calculate();
            countSpeed++;
            calc_flag = 0;
         }
-        if(countSpeed == 3) //119 for 10 minutes
+        if(endCycle == true) //119 for 10 minutes
         {
-            windSpeedReady = 1;
             mphAverage = MPH_Average(MPH);
             gust = is_gust(MPH);
             countSpeed = 0;
             memset(MPH, 0, sizeof MPH);
+            airQuality_send = GetAverage();
+            //put code for reading supernode pic sensors here
+            sprintf(localData,"X END %02x %02x %02x %02xU", mphAverage, ANGLE, gust, airQuality_send);
+                
+            CONSOLE_PutString((char *)localData);
+            ClearData();
+            endCycle = false;
         }
-        if((airQualityReady == 1) && (windSpeedReady == 1) && (windDirectionReady==1))
-        {
-            SendUART(mphAverage, gust, ANGLE, airQuality);
+        
+        //Radio Console main.c file//
+        if (new_data == 1 && new_word == 1)
+        {     
+            new_data = 0;
+
+            if (RX_char == 'U')
+            {
+                
+                RXmsg[i++] = RX_char;
+                RXmsg[i] = 0x00;
+                i=0; 
+                CONSOLE_PutString((char *)RXmsg);
+                new_word = 0;
+                
+            }
+            else
+            {
+		//construct string from recieved chars
+                RXmsg[i++] = RX_char;
+            }
+            
         }
     }
 }
@@ -362,6 +447,15 @@ void I2CStart()
     //send_flag == 0;
     
     getAngle();
+    
+    
+     // initialize console
+    CONSOLE_INIT();//uart 2 goes to PI
+    
+    RadioINIT();//uart 1 goes to radio
+    
+    CONSOLE_PutString((char *)"START SEQ");
+    //CONSOLE_PutString((char *)"X 3 7FFF 7FFF 7FFFU");
     
     
   }
@@ -436,10 +530,14 @@ void setDirection()
             if(SW_flag > MAX) MAX = SW_flag;
             if(W_flag > MAX) MAX = W_flag;
             if(NW_flag > MAX) MAX = NW_flag;
-                    
-            set_direction = 1; //Increments to 10 samples and then can enter 2nd if-statement
             
+        if (output_counter == 100)
+        {
+            set_direction = 1; //Increments to 10 samples and then can enter 2nd if-statement
             checkHighFlag();
+        }
+        output_counter++;
+        
         }
     
 }
@@ -463,11 +561,6 @@ void checkHighFlag()
                     
         //prepareForUART(ANGLE);
         
-       if (output_counter == 250)
-        {
-            windDirectionReady = 1;
-        }
-        output_counter++;
         set_direction = 0;
         send_flag = 0;
         
@@ -475,7 +568,7 @@ void checkHighFlag()
         }       
 
 }//void I2CStart()
-
+/*
 void __attribute__((__interrupt__,no_auto_psv)) _T2Interrupt(void)
 {
     if(IFS0bits.T2IF == 1)
@@ -518,7 +611,7 @@ void __attribute__((__interrupt__,no_auto_psv)) _T2Interrupt(void)
     }
     IFS0bits.T2IF = 0;
 }
-
+*//*
 void __attribute__((__interrupt__,no_auto_psv)) _T4Interrupt(void)
 {
     if(windSpeedReady != 1)
@@ -540,26 +633,53 @@ void __attribute__((__interrupt__,no_auto_psv)) _T4Interrupt(void)
     }
     IFS1bits.T4IF = 0;
 }
+*/
 
+void __attribute__((__interrupt__,no_auto_psv)) _T1Interrupt(void)
+{
+    if(IFS0bits.T1IF == 1)
+    {
+        if(clock % 500 == 0) //count 5 seconds
+        {
+            pulses = TMR3/3;
+             //time[sample_count] = 4 * (sample_count + 1);
+            sample_count++;
+            calc_flag = 1;
+            TMR3 = 0;
+            IFS0bits.AD1IF = 0;
+            IEC0bits.AD1IE = 1; // Enable A/D conversion interrupt
+            AD1CON1bits.ADON = 1; // Turn on A/D
+            AD1CON1bits.SAMP = 1; // Start sampling the input
+            ADC_ON = true;            
+            send_flag = 1; //Set flag high to output data
+            clock++;
+            if(clock == cycleTime)
+            {
+                endCycle = 1;
+                clock = 0;
+            }
+                
+            }
+            
+        }
+        clock++;
+        IFS0bits.T1IF = 0;
+}
 
 void __attribute__ ((__interrupt__,no_auto_psv)) _ADC1Interrupt(void)
 {   
     if(IFS0bits.AD1IF == 1)
     {
-    if(x < ArraySize)
+    if(x < 100)
         {
             AirQualityArray[x] =  ADC1BUF0;
             x++;
-        }
-        else if(x >= ArraySize)
-        {
-            GetAverage();
         }   
     }
     IFS0bits.AD1IF = 0;
 }
 
-void GetAverage()
+unsigned int GetAverage()
 {
     count = 1;
     AverageAirTotal = 0;
@@ -570,33 +690,28 @@ void GetAverage()
             count++;            
     }
     Average = AverageAirTotal/ArraySize;
-    airUART(Average);
-}
-
-
-void airUART(uint16_t Quality)
-{
-    if(Quality <= 124)
+    if(Average <= 124)
         {
             airQuality = 0x0001;
         }
-        else if(Quality < 217 && Quality >= 124)
+    else if(Average < 217 && Average >= 124)
         {
             airQuality = 0x0010;
         }
-        else if(Quality < 321 && Quality >= 217)
+        else if(Average < 321 && Average >= 217)
         {
             airQuality = 0x0100;
         }
-        else if(Quality >= 321)
+        else if(Average >= 321)
         {
             airQuality = 0x1000;
         }
-    airQualityReady = 1;
+    return airQuality;
+
 }
 
 
-void ClearArray()
+void ClearData()
 {
     int i = 0;
     while(i <= ArraySize-1)
@@ -604,6 +719,21 @@ void ClearArray()
         AirQualityArray[i] = 0;
         i++;
     }
+     set_direction = 0;
+    send_flag = 0;
+    ANGLE = 0; // CLEAR THE DIRECTION
+    MAX = 0; //CLEAR THE MAX FLAG
+    N_flag = 0;
+    NE_flag = 0;
+    E_flag = 0;
+    SE_flag = 0;
+    S_flag = 0;
+    SW_flag = 0;
+    W_flag = 0;
+    NW_flag = 0; //CLEAR ALL FLAGS
+    
+    
+    output_counter = 0; //resets wind vane sample counter
     x = 0;
 }
 
@@ -644,7 +774,7 @@ unsigned int is_gust(unsigned int mph_calc[120])
     return max;
 }
 
-void SendUART(unsigned int MPH, unsigned int gust, uint16_t ANGLE, volatile uint16_t airQuality)
+/*void SendUART(unsigned int MPH, unsigned int gust, uint16_t ANGLE, volatile uint16_t airQuality)
 {
     IEC0bits.T2IE = 0; //disable Timer2 interrupt
     IEC1bits.T4IE = 0; //disable timer 4 interrupt
@@ -659,7 +789,8 @@ void SendUART(unsigned int MPH, unsigned int gust, uint16_t ANGLE, volatile uint
     /*char directionString[8];
     char speedString[8];
     char airString[8];
-    char gustString[8];*/
+    char gustString[8];
+    
     char END = '7';
     sprintf(send, "%c %04x %02x %02x %02x %c\r\n", superNodeID, airQuality, ANGLE, MPH, gust, END);
     while(print < 20)
@@ -670,6 +801,8 @@ void SendUART(unsigned int MPH, unsigned int gust, uint16_t ANGLE, volatile uint
             print++;
         }
     }
+    
+    
    /*if(U2STAbits.UTXBF == 0) //check for empty buffer
     {
         WriteUART2(superNodeID);
@@ -726,30 +859,15 @@ void SendUART(unsigned int MPH, unsigned int gust, uint16_t ANGLE, volatile uint
             WriteUART2(END);
             print++;
         }
-    }*/
-    ClearArray(); //clears air quality array
-    airQualityReady = 0; //flags reset
-    windDirectionReady = 0;
-    windSpeedReady = 0;
-    set_direction = 0;
-    send_flag = 0;
-    ANGLE = 0; // CLEAR THE DIRECTION
-    MAX = 0; //CLEAR THE MAX FLAG
-    N_flag = 0;
-    NE_flag = 0;
-    E_flag = 0;
-    SE_flag = 0;
-    S_flag = 0;
-    SW_flag = 0;
-    W_flag = 0;
-    NW_flag = 0; //CLEAR ALL FLAGS
+    }
     
+    //CLEAR ALL FLAGS//
     
-    output_counter = 0; //resets wind vane sample counter
+  //  ClearArray(); //clears air quality array
     IEC0bits.T2IE = 1; //Enable Timer2 interrupt
     IEC1bits.T4IE = 1; //enable timer 4 interrupt
     
-}
+}*/
 /*
  char *itoa(char *buffer, unsigned int i) 
  {
@@ -785,3 +903,153 @@ void SendUART(unsigned int MPH, unsigned int gust, uint16_t ANGLE, volatile uint
     return &buffer[c+1];
  }
  */
+
+
+
+
+////Radio Void Functions///
+
+void CONSOLE_PutString(char* str)
+{
+    uint8_t c;
+   // uint8_t count;
+    while( c = *str++ )
+    {
+        CONSOLE_Put(c);
+    }
+    
+    
+}
+void CONSOLE_Put(uint8_t c)
+{
+    while( !CONSOLE_IsPutReady() );
+        TREG2 = c;
+        
+}
+void CONSOLE_INIT(void)
+{
+    
+     //A function that initializes UART 2 for use of the Console
+    
+    /// for uart 2 
+    U2MODEbits.UARTEN = 1;//enable UART
+    U2MODEbits.USIDL = 0; // continue operation in idle mode
+    U2MODEbits.STSEL = 0; // 1 stop bit
+    U2MODEbits.PDSEL0 = 0;
+    U2MODEbits.PDSEL1 = 0;// 8, N, 
+    U2MODEbits.BRGH = 0;
+    //U2MODEbits.BRGH = 1;
+    U2MODEbits.RXINV = 0;// rx idle state = 1
+    U2MODEbits.ABAUD = 0;// no autobaud
+    U2MODEbits.LPBACK = 0; // loopback mode disabled
+    U2MODEbits.WAKE = 0; // wakeup disable
+    U2MODEbits.UEN0 = 0;
+    U2MODEbits.UEN1 = 0;
+    U2MODEbits.RTSMD = 1;// rts mode 
+    U2MODEbits.IREN = 0;// irda disabled
+    U2STAbits.ADDEN = 0; // address mode disabled
+      
+    U2STAbits.URXISEL0 = 1;
+    U2STAbits.URXISEL1 = 1; // interrupt any data received
+    
+    U2STAbits.UTXEN = 1; // transmit enabled
+    U2STAbits.UTXBRK = 0; // break disabled
+    
+    U2STAbits.UTXISEL0 = 1;
+    U2STAbits.UTXISEL1 = 0; // interrupt when txregister becomes empty
+     
+    U2BRG = 51 ; // 3.340277778 //run at 9600
+}
+
+void RadioINIT(void)
+{
+    /*
+     * A function that initializes UART 1 for use of the Console
+     */
+    TRISAbits.TRISA4 = 1;
+    ANSBbits.ANSB2 = 0;
+    
+	U1MODEbits.UARTEN = 1;		// UART1 is Enabled
+	U1MODEbits.USIDL = 0;		// Continue operation at Idlestate
+	U1MODEbits.IREN = 0;		// IrDA En/Decoder is disabled
+	U1MODEbits.UEN = 0b00;		
+	U1MODEbits.WAKE = 1;		// Wake-up on start bit is enabled
+	U1MODEbits.LPBACK = 0;		// Loop-back is disabled
+	U1MODEbits.ABAUD = 0;		// auto baud is disabled
+	U1MODEbits.RXINV = 0;		// No RX inversion
+	U1MODEbits.BRGH = 0;		// low boud rate
+	U1MODEbits.PDSEL = 0b00; 	// 8bit no parity
+	U1MODEbits.STSEL = 0;		// one stop bit	
+		
+
+	U1STAbits.UTXISEL1 = 0b00;	
+	//U1STA &= 0xDFFF;			// clear TXINV by bit masking
+	U1STAbits.UTXBRK = 0;		// sync break tx is disabled
+	U1STAbits.UTXEN = 1;		//transmit  is enabled
+	U1STAbits.URXISEL = 0b00;	// interrupt flag bit is set when RXBUF is filled with 1 character
+	U1STAbits.ADDEN = 0;		// address detect mode is disabled
+
+	IFS0bits.U1RXIF = 0;		// clear interrupt flag of rx
+	IEC0bits.U1RXIE = 1;		// enable rx recieved data interrupt
+    
+    U1BRG = 51 ; // 3.340277778 for baud of 9600
+   
+    //count = 0;
+    
+    //while(count++<0xFFFFF){}
+    
+
+    TRISBbits.TRISB8 = 0;
+    LATBbits.LATB8 = 1;
+
+}
+
+void RadioTX(char* str)
+{
+ 
+    uint8_t c;
+
+    while( c = *str++ )
+    {
+        Radio_Put(c);
+    }
+}
+
+void Radio_Put(uint8_t c)
+{
+    while( !Radio_IsPutReady() );
+    TREG1 = c;
+
+}
+
+bool Radio_IsPutReady()
+{
+    //may need to check another condition as well
+    // depending on if radio has interrupts
+    if (!U1STAbits.TRMT)
+    {
+        return 0;
+    }
+    else 
+    {
+        return 1;
+    }
+}
+  
+void __attribute__((interrupt, shadow, no_auto_psv)) _U1RXInterrupt(void)
+{
+    //This is called when interrupt happens from recieved char from radio
+    U1STAbits.OERR = 0;
+    RX_char = (U1RXREG);
+    new_data = 1;
+    
+    if(RX_char == 'X' && new_word == 0)
+    {
+        new_word = 1;
+    }
+   
+   // RadioTX((char *)"\n\rwriting RX_char ");
+    IFS0bits.U1RXIF = 0;
+    
+}
+
