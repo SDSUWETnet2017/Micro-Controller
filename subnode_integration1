@@ -1,4 +1,4 @@
-  #include <p24F16KL401.h>
+ #include <p24F16KL401.h>
   #include <xc.h>
   #include <stdint.h>
   #include <stdio.h>
@@ -10,67 +10,62 @@
 
     #define _XTAL_FREQ 8000000
 
-// PIC24F16KL401 Configuration Bit Settings
 
-// 'C' source line config statements
+    // FBS
+    #pragma config BWRP = OFF               // Boot Segment Write Protect (Disabled)
+    #pragma config BSS = OFF                // Boot segment Protect (No boot flash segment)
 
-// FBS
-#pragma config BWRP = OFF               // Boot Segment Write Protect (Disabled)
-#pragma config BSS = OFF                // Boot segment Protect (No boot flash segment)
+    // FGS
+    #pragma config GWRP = OFF               // General Segment Flash Write Protect (General segment may be written)
+    #pragma config GSS0 = OFF               // General Segment Code Protect (No Protection)
 
-// FGS
-#pragma config GWRP = OFF               // General Segment Flash Write Protect (General segment may be written)
-#pragma config GSS0 = OFF               // General Segment Code Protect (No Protection)
+    // FOSCSEL
+    #pragma config FNOSC = FRCPLL           // Oscillator Select (Fast RC Oscillator with Postscaler and PLL (FRCDIV+PLL))
+    #pragma config SOSCSRC = ANA            // SOSC Source Type (Analog Mode for use with crystal)
+    #pragma config LPRCSEL = HP             // LPRC Power and Accuracy (High Power/High Accuracy)
+    #pragma config IESO = ON                // Internal External Switch Over bit (Internal External Switchover mode enabled (Two-speed Start-up enabled))
 
-// FOSCSEL
-#pragma config FNOSC = FRCPLL           // Oscillator Select (Fast RC Oscillator with Postscaler and PLL (FRCDIV+PLL))
-#pragma config SOSCSRC = ANA            // SOSC Source Type (Analog Mode for use with crystal)
-#pragma config LPRCSEL = HP             // LPRC Power and Accuracy (High Power/High Accuracy)
-#pragma config IESO = ON                // Internal External Switch Over bit (Internal External Switchover mode enabled (Two-speed Start-up enabled))
+    // FOSC
+    #pragma config POSCMD = XT              // Primary Oscillator Mode (XT oscillator mode selected)   1
+    #pragma config OSCIOFNC = ON            // CLKO Pin I/O Function (Port I/O enabled (CLKO disabled)) 
+    #pragma config POSCFREQ = HS            // Primary Oscillator Frequency Range (Primary Oscillator/External Clock frequency >8MHz)
+    #pragma config SOSCSEL = SOSCHP         // SOSC Power Selection Configuration bits (Secondary Oscillator configured for high-power operation)
+    #pragma config FCKSM = CSECME           // Clock Switching and Monitor Selection (Clock Switching and Fail-safe Clock Monitor Enabled)
 
-// FOSC
-#pragma config POSCMD = XT              // Primary Oscillator Mode (XT oscillator mode selected)
-#pragma config OSCIOFNC = ON            // CLKO Pin I/O Function (Port I/O enabled (CLKO disabled))
-#pragma config POSCFREQ = HS            // Primary Oscillator Frequency Range (Primary Oscillator/External Clock frequency >8MHz)
-#pragma config SOSCSEL = SOSCHP         // SOSC Power Selection Configuration bits (Secondary Oscillator configured for high-power operation)
-#pragma config FCKSM = CSECME           // Clock Switching and Monitor Selection (Clock Switching and Fail-safe Clock Monitor Enabled)
+    // FWDT
+    #pragma config WDTPS = PS32768          // Watchdog Timer Postscale Select bits (1:32768)
+    #pragma config FWPSA = PR128            // WDT Prescaler bit (WDT prescaler ratio of 1:128)
+    #pragma config FWDTEN = OFF             // Watchdog Timer Enable bits (WDT disabled in hardware; SWDTEN bit disabled)  1
+    #pragma config WINDIS = ON              // Windowed Watchdog Timer Disable bit (Windowed WDT enabled)
 
-// FWDT
-#pragma config WDTPS = PS32768          // Watchdog Timer Postscale Select bits (1:32768)
-#pragma config FWPSA = PR128            // WDT Prescaler bit (WDT prescaler ratio of 1:128)
-#pragma config FWDTEN = OFF             // Watchdog Timer Enable bits (WDT disabled in hardware; SWDTEN bit disabled)
-#pragma config WINDIS = ON              // Windowed Watchdog Timer Disable bit (Windowed WDT enabled)
+    // FPOR
+    #pragma config BOREN = BOR0             // Brown-out Reset Enable bits (Brown-out Reset disabled in hardware; SBOREN bit disabled)  1
+    #pragma config PWRTEN = OFF             // Power-up Timer Enable (PWRT disabled)   1 
+    #pragma config I2C1SEL = PRI            // Alternate I2C1 Pin Mapping bit (Default SCL1/SDA1 Pins for I2C1)
+    #pragma config BORV = V18               // Brown-out Reset Voltage bits (Brown-out Reset at 1.8V)
+    #pragma config MCLRE = ON               // MCLR Pin Enable bit (RA5 input disabled; MCLR enabled)
 
-// FPOR
-#pragma config BOREN = BOR0             // Brown-out Reset Enable bits (Brown-out Reset disabled in hardware; SBOREN bit disabled)
-#pragma config PWRTEN = OFF             // Power-up Timer Enable (PWRT disabled)
-#pragma config I2C1SEL = PRI            // Alternate I2C1 Pin Mapping bit (Default SCL1/SDA1 Pins for I2C1)
-#pragma config BORV = V18               // Brown-out Reset Voltage bits (Brown-out Reset at 1.8V)
-#pragma config MCLRE = ON               // MCLR Pin Enable bit (RA5 input disabled; MCLR enabled)
+    // FICD
+    #pragma config ICS = PGx1       
 
-// FICD
-#pragma config ICS = PGx1               // ICD Pin Placement Select (EMUC/EMUD share PGC1/PGD1)
+//****************************************************************************
 
-// #pragma config statements should precede project file includes.
-// Use project enums instead of #define for ON and OFF.
+int counter = 0; //Counts to 100 for while-loop (Average_wind function)
 
+int send_flag = 0; //Flag is high in Timer2 and sends output
+char string[8];
+char string1[8];
+char string2[8];
+int new_data = 0;
+char RX_char = 0;
+uint8_t nodeNumber = 2;
 
-
-
-   
-/*
- 
- Defines
- 
- */
-#define _XTAL_FREQ  8000000
 #define CONSOLE_IsPutReady()        (U2STAbits.TRMT)
 #define TREG2        U2TXREG
 #define RREG2       U2RXREG
 #define TREG1       U1TXREG
 #define RREG1       U1RXREG
 
- 
 void RadioINIT(void);
 void Radio_Put(uint8_t c);
 bool Radio_IsPutReady(void);
@@ -83,26 +78,16 @@ void CONSOLE_INIT(void);
 
 void __attribute__((interrupt, shadow, no_auto_psv)) _U1RXInterrupt();
 
-int new_data = 0;
-char RX_char = 0;
-
-
 //****************************************************************************
-uint16_t ANGLE;  
-unsigned short i;
-unsigned short j;
-uint16_t AVERAGE_ANGLE;
-int array_size = 100;
-uint16_t temp = 0x7FFF;
-uint16_t humidity = 0x7FFF;
-uint8_t nodeNumber = 2;
-
-int counter = 0; //Counts to 100 for while-loop (Average_wind function)
-int adder = 0;
-int send_flag = 0; //Flag is high in Timer2 and sends output
-char string[8];
-//****************************************************************************
-
+ unsigned short T1;
+  unsigned short T2;
+   unsigned short T3;
+     unsigned short H1;
+      unsigned short H2;
+       unsigned short H3;
+        unsigned short H4;
+         unsigned short H5;
+   unsigned short H6;
 
     
     void I2C_Master_Init(const unsigned long c)
@@ -132,7 +117,7 @@ char string[8];
     IFS0bits.T2IF = 0; //Clear Timer2 interrupt flag
     IEC0bits.T2IE = 1; //Enable Timer2 interrupt
 
-    /*
+    
     U1MODEbits.UARTEN = 1;//enable UART
     U1MODEbits.USIDL = 0; // continue operation in idle mode
     U1MODEbits.STSEL = 0; // 1 stop bit
@@ -157,11 +142,11 @@ char string[8];
     U1STAbits.UTXEN = 1; // transmit enabled
     U1STAbits.UTXBRK = 0; // break disabled
     
-   U1STAbits.UTXISEL0 = 1;
-  U1STAbits.UTXISEL1 = 0; // interrupt when txregister becomes empty
+   // U1STAbits.UTXISEL0 = 1;
+   // U1STAbits.UTXISEL1 = 0; // interrupt when txregister becomes empty
      
     U1BRG = 51 ; // 3.340277778
-    */
+    
     ////******************///****************////
  
     }
@@ -202,62 +187,7 @@ char string[8];
 
     }
     //**************************************************
-
-   uint16_t send_uart(uint16_t ang) //UART
-    {
-    /*
-   int count = 0;
-   
-    while (count < 6)
-        {    
-       
-            sprintf(string, "\r\n0x%x", ang);
-            RadioTX(string[count]);
-            count++;
-        } 
-       count = 0;
-       */ 
-      
-    sprintf(string, "%04x", ang);
-    RadioTX((char *)string);
-    }    
-
-
-    //********************************************used for write and read
-
-    void Write8(unsigned add,unsigned reg,unsigned val) //slave address, register, val (three write)) + start +stop condition
-    {
-          I2C_Master_Start();
-
-         I2C_Master_Write(add);     //slave id + 0
-
-        I2C_Master_Write(reg);    //register address
-
-         I2C_Master_Write(val);    //data 
-
-         I2C_Master_Stop();
-    }
-
-    void writeParam(unsigned  p, unsigned  v) //write parameter
-    {
-        Write8(0xc0,0x17, v);
-        Write8(0xc0,0x18, p | 0xA0);
-
-    }
-
-    /*void Read(unsigned q,unsigned w,unsigned e) //don`t use 
-    {
-
-        I2C_Master_Write(q); //7 bits + write
-        I2C_Master_Write(w);
-        I2C_Master_RepeatedStart();
-        I2C_Master_Write(e); // 7 bits +read (1)
-
-    }*/
-
-
-
-    unsigned short ReadValue(unsigned q,unsigned w, unsigned e, unsigned short a)
+     unsigned short ReadValue(unsigned q,unsigned w, unsigned e, unsigned short a) //16 bits
     {
       unsigned short temp;
 
@@ -278,9 +208,288 @@ char string[8];
       SSP1CON2bits.ACKEN = 1;          //Acknowledge sequence
       return temp;
     }
+     
+   unsigned short  read16_T1()
+  {
+      unsigned short i;
+      unsigned short j;
+      unsigned short z;
+      
+      I2C_Master_Start();
+      i=ReadValue(0xEC,0x89,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      I2C_Master_Start();
+      j=ReadValue(0xEC,0x88,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      
+      z=i*256+j;
+      
+      return z;
+  }
+unsigned short read16_T2()
+{
+    unsigned short i;
+      unsigned short j;
+      unsigned short z;
+      
+      I2C_Master_Start();
+      i=ReadValue(0xEC,0x8B,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      I2C_Master_Start();
+      j=ReadValue(0xEC,0x8A,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      
+      z=i*256+j;
+      
+      return z;
+}
 
+unsigned short read16_T3()
+{
+    unsigned short i;
+      unsigned short j;
+      unsigned short z;
+      
+      I2C_Master_Start();
+      i=ReadValue(0xEC,0x8D,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      I2C_Master_Start();
+      j=ReadValue(0xEC,0x8C,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      
+      z=i*256+j;
+      
+      return z;
+}
 
-    void reset() {
+  unsigned short  read16_H1()
+  {
+      unsigned short i;
+      unsigned short z;
+      
+      I2C_Master_Start();
+      i=ReadValue(0xEC,0xA1,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      
+      z=i;
+      
+      return z;
+  }
+
+    unsigned short  read16_H2()
+  {
+      unsigned short i;
+      unsigned short j;
+      unsigned short z;
+      
+      I2C_Master_Start();
+      i=ReadValue(0xEC,0xE2,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      I2C_Master_Start();
+      j=ReadValue(0xEC,0xE1,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      
+      z=i*256+j;
+      
+      return z;
+  }
+    
+      unsigned short  read16_H3()
+  {
+      unsigned short i;
+      unsigned short z;
+      
+      I2C_Master_Start();
+      i=ReadValue(0xEC,0xE3,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      
+      z=i;
+      
+      return z;
+  }
+      
+        unsigned short  read16_H4()
+  {
+      unsigned short i;
+      unsigned short j;
+      unsigned short z;
+      
+      I2C_Master_Start();
+      i=ReadValue(0xEC,0xE4,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      I2C_Master_Start();
+      j=ReadValue(0xEC,0xE5,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      
+      z=i*16+j;
+      
+      return z;
+  }
+        
+          unsigned short  read16_H5()
+  {
+      unsigned short i;
+      unsigned short j;
+      unsigned short z;
+      
+      I2C_Master_Start();
+      i=ReadValue(0xEC,0xE6,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      I2C_Master_Start();
+      j=ReadValue(0xEC,0xE5,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      
+      z=i*16+j;
+      
+      return z;
+  }
+          
+     unsigned short  read16_H6()
+  {
+      unsigned short i;
+
+      unsigned short z;
+      
+      I2C_Master_Start();
+      i=ReadValue(0xEC,0xE7,0xED,0); //change to 2d
+      I2C_Master_Stop();
+      
+      z=i;
+      
+      return z;
+  }
+   
+     uint16_t send_uart(unsigned i, unsigned j, unsigned k, unsigned a, unsigned b, unsigned q, unsigned w)
+    {
+    
+    int count = 0;
+    uint32_t value;
+    float var1;
+    float var2;
+    char msg[255];
+    uint32_t hum;
+    float h;
+    
+    unsigned short uv;
+    
+    
+    
+    T1=read16_T1();
+    T2=read16_T2();
+    T3=read16_T3();
+    
+    H1=read16_H1();
+    H2=read16_H2();
+    H3=read16_H3();
+    H4=read16_H4();
+    H5=read16_H5();
+    H6=read16_H6();
+    
+    
+    //////////////////////////below temperature
+   
+   value = (uint32_t)i*4096+(uint32_t)j*16+(uint32_t)k/16; 
+   
+   var1=(((float)value/16384) - (float) T1/1024) * 26229;
+   
+   var2=(((float)value/131072 -(float)T1/8192) * ( (float)value/131072 - (float)T1/8192))*T3;
+   
+   float t= var1+var2;
+   
+   float T=t/5120;
+   
+   float temp= T*1.8+32;
+   /////////////////////////////////below humidity
+   hum=(uint32_t)a*256+(uint32_t)b;
+
+   h= var1+var2-76800;
+   
+   h=(hum - ( H4*64.0 + (float) H5/16384.8 * h)) * ( (float)H2/ 65536.0 * (1.0 + (float)H6/ 67108864.0 * h * (1.0 + (float)H3/ 67108864.0 * h)));
+   
+   h=h*(1.0 -(float)H1*h/524288.0);
+   
+  if (h>100)
+   {
+       h=100;
+   }
+   
+   if(h<0)
+   {
+       h=0;
+   }
+   
+   float humidity=h;
+/////////////////////////////////////below are UV index
+   uv=q*256+w;
+   float uvindex= (float)uv /100;
+  ///////////////////////////////
+/*
+   while (count <6)
+        {    
+          
+          sprintf( string, "\r\n%f",temp);
+          WriteUART1(string[count]);
+         
+          count++;
+        }
+       count = 0;
+  //////////////////////////////////////////
+       
+   while (count <6)
+        {    
+          
+          sprintf( string1, "\r\n%f",humidity);
+          WriteUART1(string1[count]);
+         
+          count++;
+        }
+       count = 0;
+///////////////////////////////////////////////////        
+       
+       while (count <6)
+        {    
+          
+          sprintf( string2, "\r\n%f",uvindex);
+          WriteUART1(string2[count]);
+         
+          count++;
+        }
+       count = 0;
+        */
+    sprintf(msg,"X %d %.2f %.2f %.2fU", nodeNumber, temp, humidity, uvindex);
+    RadioTX((char *)msg);
+        
+    if(nodeNumber++ > 4)
+        nodeNumber = 2;
+       
+        
+    }    
+
+    
+ 
+ 
+    
+    void Write8(unsigned add,unsigned reg,unsigned val) //slave address, register, val (three write)) + start +stop condition
+    {
+         I2C_Master_Start();
+
+         I2C_Master_Write(add);     //slave id + 0
+
+        I2C_Master_Write(reg);    //register address
+
+         I2C_Master_Write(val);    //data 
+
+         I2C_Master_Stop();
+    }
+
+     void writeParam(unsigned  p, unsigned  v) //write parameter
+    {
+        Write8(0xc0,0x17, v);
+        Write8(0xc0,0x18, p | 0xA0);
+    }
+
+  void reset() {
+      
       Write8(0xc0,0x08, 0);
       Write8(0xc0,0x09, 0);
       Write8(0xc0,0x04, 0);
@@ -290,12 +499,12 @@ char string[8];
       Write8(0xc0,0x21, 0xFF);
 
       Write8(0xc0,0x18, 0x01);
-      I2C_Master_Wait();
+      
       Write8(0xc0,0x07, 0x17);
 
-      I2C_Master_Wait();
+      
     }
-
+  
     void initializationUV()
     {
         //enable UVindex measurement coefficients
@@ -329,8 +538,6 @@ char string[8];
       // in high range mode
       writeParam(0x1F, 0x20);
 
-
-
       // fastest clocks, clock div 1
       writeParam(0x11, 0);
       // take 511 clocks to measure
@@ -347,68 +554,103 @@ char string[8];
 
     }
     
+    
     void main()
     {   
         
-      RadioINIT();
-      char msg[255];
-      unsigned short i; //store lower byte
+    RadioINIT();
+   
 
-     unsigned short j; //store higher byte 
+     unsigned short i; //store lower byte
+     unsigned short j; //store higher byte
+     unsigned short k;
      
-     unsigned short value;
+     unsigned short a; //for humidity
+     unsigned short b;
+   
+     unsigned short q; //uv index
+     unsigned short w;
      
-     I2C_Master_Init(100000);      //Initialize I2C Master with 100KHz clock
-
+     unsigned short s1;
+      unsigned short s2;
+      unsigned short s3;
+       unsigned short s4;
+        unsigned short s5;
+        unsigned short s6;
+        unsigned short s7;
+        
+      I2C_Master_Init(100000);      //Initialize I2C Master with 100KHz clock
+    
      reset(); //reset SI1145, uv light
- 
-     initializationUV(); //initialization for UV sensor
+     
+      initializationUV(); //initialization for UV sensor
      
      
+     //set sampling
+        
+     Write8(0xEC,0xF2,0b00000101);
+     Write8(0xEC,0XF5,0b00000000);
+     Write8(0xEC,0XF4,0b10110111);
+      
+      
       TRISAbits.TRISA4 = 0;    //no use
  
       T1CON=0x8030; //timer
 
-      
-
         while(1)
         {
-
-         I2C_Master_Start();
-
-        j=ReadValue(0xc0,0x2d,0xc1,0); //change to 2d
-
-        I2C_Master_Stop();
-      
-        I2C_Master_Start();
-
-        i=ReadValue(0xc0,0x2C,0xc1,0);
-
-        I2C_Master_Stop(); 
-        
-        value =j*250+i;
-      
-        if(send_flag == 1)
-   {
-        ANGLE = value;
-        
-        //send_uart(ANGLE);
-        
-        sprintf(msg,"X %d %04x %04x %04xU", nodeNumber, temp, humidity, ANGLE);
-        RadioTX((char *)msg);
-        
-        if(nodeNumber++ > 4)
-            nodeNumber = 2;
-            
-       
-        
-   }    
-    
-           
+  ////////////below temp
+     I2C_Master_Start();
+     i=ReadValue(0xEC,0xFA,0xED,0); //change to 2d  , 19-12
+     I2C_Master_Stop();
      
-        
-       
+     I2C_Master_Start();
+     j=ReadValue(0xEC,0xFB,0xED,0); //change to 2d   11-4
+     I2C_Master_Stop();
+             ;
+     I2C_Master_Start();
+     k=ReadValue(0xEC,0xFc,0xED,0); //change to 2d   11-4
+     I2C_Master_Stop();
+     
+ //////////////////below humi
+      I2C_Master_Start();
+     a=ReadValue(0xEC,0xFD,0xED,0); //humidity
+     I2C_Master_Stop();
+     
+     I2C_Master_Start();
+     b=ReadValue(0xEC,0xFE,0xED,0); 
+     I2C_Master_Stop();
+             
+//////////////////////below uv index
+     I2C_Master_Start();
 
+     q=ReadValue(0xC0,0x2D,0xC1,0); //MSB
+
+     I2C_Master_Stop();
+      
+     I2C_Master_Start();
+
+     w=ReadValue(0xC0,0x2C,0xC1,0);
+
+     I2C_Master_Stop();     
+     
+       if(send_flag == 1)
+      {
+        s1=i; //temp
+        s2=j;
+        s3=k;
+      
+        s4=a; //humidity
+        s5=b;
+        
+        s6=q;
+        s7=w;
+        
+        send_uart(s1,s2,s3,s4,s5,s6,s7);
+        }
+
+       
+        
         //  Write8(0xc0,0x00,0b01100110);
 
         while (TMR1<DELAY) //delay function
@@ -422,24 +664,25 @@ char string[8];
 
     }
 
-    void __attribute__((__interrupt__,no_auto_psv)) _T2Interrupt(void)
+
+  void __attribute__((__interrupt__,no_auto_psv)) _T2Interrupt(void)
 {
     
     
-    if(counter>=25000) //Delay transmitting output if PR2 is not long enough //30000
-        {
-            send_flag = 1; //Set flag high to output data
+    if(counter>=10000) //Delay transmitting output if PR2 is not long enough //30000
+       {
+           send_flag = 1; //Set flag high to output data
             
             IFS0bits.T2IF = 0; //Empty flag to exit Timer2
             
             counter = 0;
         }
     else
-        counter++;
+       counter++;
    
 }
 
-    /*
+      /*
 void CONSOLE_PutString(char* str)
 {
     uint8_t c;
@@ -572,3 +815,4 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _U1RXInterrupt(void)
     new_data = 1;
     IFS0bits.U1RXIF = 0;
 }
+  
