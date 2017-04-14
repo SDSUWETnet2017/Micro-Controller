@@ -59,6 +59,7 @@ char string2[8];
 int new_data = 0;
 char RX_char = 0;
 uint8_t nodeNumber = 2;
+bool pairedFlag = 0;
 
 #define CONSOLE_IsPutReady()        (U2STAbits.TRMT)
 #define TREG2        U2TXREG
@@ -71,6 +72,8 @@ void Radio_Put(uint8_t c);
 bool Radio_IsPutReady(void);
 void RadioTX(char* str);
 char* RadioRX(void);
+void GetNodeNumber(void);
+void WaitForStart(void);
 
 void CONSOLE_PutString(char* str);
 void CONSOLE_Put(uint8_t c);
@@ -456,11 +459,10 @@ unsigned short read16_T3()
         }
        count = 0;
         */
-    sprintf(msg,"X %d %.2f %.2f %.2fU", nodeNumber, temp, humidity, uvindex);
+    sprintf(msg,"X %c %.2f %.2f %.2fU", nodeNumber, temp, humidity, uvindex);
     RadioTX((char *)msg);
         
-    if(nodeNumber++ > 4)
-        nodeNumber = 2;
+
        
         
     }    
@@ -559,8 +561,9 @@ unsigned short read16_T3()
     {   
         
     RadioINIT();
-   
-
+    GetNodeNumber();
+    WaitForStart();
+    
      unsigned short i; //store lower byte
      unsigned short j; //store higher byte
      unsigned short k;
@@ -816,3 +819,26 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _U1RXInterrupt(void)
     IFS0bits.U1RXIF = 0;
 }
   
+void GetNodeNumber(void)
+{
+    char response[2];
+    while(!pairedFlag)
+    {
+        if(RX_char > '1' && RX_char < '11')
+        {
+            nodeNumber = RX_char;
+            pairedFlag = 1;
+        }
+    }
+    sprintf(response, "%c", nodeNumber);
+    RadioTX((char *)response);
+    
+}
+
+void WaitForStart()
+{
+    while(RX_char != 'S')
+    {
+        
+    }
+}
