@@ -170,6 +170,7 @@ volatile bool set_direction = false; //flag goes high once all the flags are com
 volatile uint16_t MAX = 0;
 volatile uint16_t ANGLE;  
 volatile uint8_t ii;
+volatile uint8_t counter2 = 0;
 
 void main(void)
 {
@@ -683,8 +684,8 @@ void getAngle()
 
 void setDirection()
 {
-    if(array_counter >= array_size) //Enter if-statement once all the samples have been set to a direction flag   
-        {
+    //if(array_counter >= array_size) //Enter if-statement once all the samples have been set to a direction flag   
+      //{
             array_counter = 0; //empty array counter so it can sample again
             // Set up each flag to a char N or to hexadecimal number
             //Count which flag has the most counts
@@ -700,7 +701,7 @@ void setDirection()
             set_direction = true; //Increments to 10 samples and then can enter 2nd if-statement
             
             checkHighFlag();
-        }
+      // }
     
 }
 
@@ -721,8 +722,14 @@ void checkHighFlag()
                     else 
                         ANGLE = 0; //If an error, send zero
                     
+                    if(counter2<10)
+                    {
+                        counter2++;
+                        I2CStart();
+                    }
         //prepareForUART(ANGLE);
-
+       
+       counter2 = 0;
         set_direction = false;
         send_flag = false;
         
