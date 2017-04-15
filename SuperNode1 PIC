@@ -779,7 +779,7 @@ void __attribute__((__interrupt__,no_auto_psv)) _T1Interrupt(void)
     {
         if(pairFlag == 0)
         {
-        pulses = TMR3/3;
+        pulses = TMR3;
         //time[sample_count] = 4 * (sample_count + 1);
         //sample_count++;
         calc_flag = 1;
