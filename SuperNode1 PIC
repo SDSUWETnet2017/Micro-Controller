@@ -90,6 +90,7 @@ void CONSOLE_PutString(char* str);
 void CONSOLE_Put(uint8_t c);
 void CONSOLE_INIT(void);
 
+void IO_INIT(void);
 void ISR_INIT(void);
 void TMR1_INIT(void);
 void TMR3_INIT(void);
@@ -181,6 +182,7 @@ void main(void)
     RadioINIT();//uart 1 goes to radio
     //RadioTX((char*)"after init radio");
     I2C_Master_Init(100000);
+    IO_INIT();
     TMR1_INIT();
     TMR3_INIT();
     ADC_INIT();
@@ -376,6 +378,18 @@ void main(void)
         
         
     }
+}
+
+void IO_INIT(void)
+{
+    //Air Pollutant
+    TRISAbits.TRISA0 = 1;
+    ANSAbits.ANSA0 = 1;
+    
+    //Anemometer
+    TRISBbits.TRISB15 = 1;
+    ANSBbits.ANSB15 = 0;
+
 }
 
 void TMR1_INIT(void)
