@@ -610,11 +610,13 @@ void CONSOLE_INIT(void)
     AD1CHSbits.CH0SA =0b1001; //Channel 0 positive input AN9 MUXA
     AD1CHSbits.CH0SB =0b1001; //Channel 0 positive input AN9 MUXB
     ////******************///****************////
-  //  CONSOLE_PutString((char*)"a");   
+  //  CONSOLE_PutString((char*)"a");  
+    CONSOLE_PutString((char*)"ON\n\r");
     RadioINIT();
     GetNodeNumber();
+    CONSOLE_PutString((char*)"GOT NODE NUMBER\n\r");
     WaitForStart();
-    CONSOLE_PutString((char*)"Initialized");
+    CONSOLE_PutString((char*)"\r\nInitialized");
      unsigned short i; //store lower byte
      unsigned short j; //store higher byte
      unsigned short k;
@@ -730,27 +732,30 @@ void CONSOLE_INIT(void)
      w=ReadValue(0xC0,0x2C,0xC1,0);
 
      I2C_Master_Stop();     
-     CONSOLE_PutString((char *)"I2C End");
+     //CONSOLE_PutString((char *)"I2C End");
     while(confirm_count++ <=  4)
     {
         if(confirmFlag == 1)
         {
+            confirmFlag = 0;
             if(conf[1] == '+')
             {
                 CONSOLE_PutString((char *)"Increment Clock");
-                totalPeriod = totalPeriod + 1100;
+                //totalPeriod = totalPeriod + 1100;
+                totalPeriod += 110;
             }
             else if(conf[1] == '-')
             {
                 CONSOLE_PutString((char *)"Decrement Clock");
-                totalPeriod = totalPeriod - 1100;
+                //totalPeriod = totalPeriod - 1100;
+                totalPeriod -= 110;
             }
             else if(conf[1] == 'N')
             {
                 CONSOLE_PutString((char *)"No Change");
                 break;
             }
-            confirmFlag = 0;
+            //confirmFlag = 0; //SW moved this to top of statement 
         }
         s1=i; //temp
         s2=j;
@@ -763,7 +768,7 @@ void CONSOLE_INIT(void)
         s7=w;
         //CONSOLE_PutString((char *)"Send Uart");
         send_uart(s1,s2,s3,s4,s5,s6,s7);
-        uint16_t c = clock + 50;//wait 20ms
+        uint16_t c = clock + 50;//wait 50ms
         while(c>clock);
                
         
