@@ -196,7 +196,7 @@ void main(void)
     int offsetThreshold = 1000; //set to 10 seconds //comparison for how much oscillator can be off on subnode in 10s of milliseconds
     uint8_t i = 0;
     
-    uint16_t MPH[100] = {0};
+    uint16_t MPH[130] = {0};
     uint16_t countSpeed = 0;
     uint16_t mphAverage = 0;
     uint16_t gust = 0;
