@@ -1,15 +1,3 @@
- #include <p24F16KL401.h>
-  #include <xc.h>
-  #include <stdint.h>
-  #include <stdio.h>
-  #include <uart.h>
-  #include <string.h>
-  #include <stdbool.h>
-
-    #define DELAY 10000
-
-    #define _XTAL_FREQ 8000000
-
 
     // FBS
     #pragma config BWRP = OFF               // Boot Segment Write Protect (Disabled)
@@ -49,18 +37,35 @@
     #pragma config ICS = PGx1       
 
 //****************************************************************************
+ #include <p24F16KL401.h>
+#include <xc.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
+
+#define DELAY 10000
+#define _XTAL_FREQ 8000000
+
 
 int counter = 0; //Counts to 100 for while-loop (Average_wind function)
-
+uint32_t totalPeriod = 60000;
+uint16_t clock = 0;
 int send_flag = 0; //Flag is high in Timer2 and sends output
 char string[8];
 char string1[8];
 char string2[8];
 int new_data = 0;
+uint8_t confCount = 0;
+char conf[2];
 char RX_char = 0;
 uint8_t nodeNumber = 2;
 bool pairedFlag = 0;
-
+int snooze = 0;
+uint16_t ADCval=0;
+int ADCcount =0;
+uint8_t confirm_count = 0;
+bool confirmFlag = 0;
 #define CONSOLE_IsPutReady()        (U2STAbits.TRMT)
 #define TREG2        U2TXREG
 #define RREG2       U2RXREG
@@ -101,60 +106,9 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _U1RXInterrupt();
       SSP1ADD = (_XTAL_FREQ/(4*c))-1; //Setting Clock Speed
 
       SSP1STAT =0b0000000000000000;
-
-
-      TRISBbits.TRISB8 = 1;      //SCL. Set as input.
-
-      TRISBbits.TRISB9 = 1;      //SDA. Set as input.
-
-      TRISBbits.TRISB7 = 0; //UART1 transmit the value (RB0)
-      
-      /////////////////////////////timer
-    T2CONbits.TMR2ON = 1; //Turn on Timer 2
-    T2CONbits.T2CKPS0 = 1; //Set prescaler to 16
-    T2CONbits.T2CKPS1 = 1;
-    PR2 = 50000;   //(2/Fosc)*post*pre_(PR2+1) = Time   (2/8M)*16*(50000+1) = 0.2 sec
-    
-    INTCON1bits.NSTDIS = 1; //Disable nested interrupts
-    INTCON2bits.INT0EP = 0; //interrupt 0 on posedge
-    IFS0bits.T2IF = 0; //Clear Timer2 interrupt flag
-    IEC0bits.T2IE = 1; //Enable Timer2 interrupt
-
-    
-    U1MODEbits.UARTEN = 1;//enable UART
-    U1MODEbits.USIDL = 0; // continue operation in idle mode
-    U1MODEbits.STSEL = 0; // 1 stop bit
-    U1MODEbits.PDSEL0 = 0;
-    U1MODEbits.PDSEL1 = 0;// 8, N, 
-    U1MODEbits.BRGH = 0;
-    //U1MODEbits.BRGH = 1;
-
-    U1MODEbits.RXINV = 0;// rx idle state = 1
-    U1MODEbits.ABAUD = 0;// no autobaud
-    U1MODEbits.LPBACK = 0; // loopback mode disabled
-    U1MODEbits.WAKE = 0; // wakeup disable
-    U1MODEbits.UEN0 = 0;
-    U1MODEbits.UEN1 = 0;
-    U1MODEbits.RTSMD = 1;// rts mode 
-    U1MODEbits.IREN = 0;// irda disabled
-    U1STAbits.ADDEN = 0; // address mode disabled
-      
-    U1STAbits.URXISEL0 = 1;
-    U1STAbits.URXISEL1 = 1; // interrupt any data received
-    
-    U1STAbits.UTXEN = 1; // transmit enabled
-    U1STAbits.UTXBRK = 0; // break disabled
-    
-   // U1STAbits.UTXISEL0 = 1;
-   // U1STAbits.UTXISEL1 = 0; // interrupt when txregister becomes empty
-     
-    U1BRG = 51 ; // 3.340277778
-    
-    ////******************///****************////
- 
     }
 
-    //************************************* single function to form complex one
+   //************************************* single function to form complex one
     void I2C_Master_Wait()
     {
       while ((SSP1STAT & 0x04) || (SSP1CON2 & 0x1F)); //Transmit is in progress
@@ -365,7 +319,7 @@ unsigned short read16_T3()
      uint16_t send_uart(unsigned i, unsigned j, unsigned k, unsigned a, unsigned b, unsigned q, unsigned w)
     {
     
-    int count = 0;
+ 
     uint32_t value;
     float var1;
     float var2;
@@ -467,7 +421,60 @@ unsigned short read16_T3()
         
     }    
 
+    void CONSOLE_PutString(char* str)
+{
+    uint8_t c;
+
+    while( c = *str++ )
+        CONSOLE_Put(c);
+}
+
+void CONSOLE_Put(uint8_t c)
+{
+    while( !CONSOLE_IsPutReady() );
+        TREG2 = c;
+        
+
+}
+
+void CONSOLE_INIT(void)
+{
     
+     //A function that initializes UART 2 for use of the Console
+    
+    /// for uart 2 
+    U2MODEbits.UARTEN = 1;//enable UART
+    U2MODEbits.USIDL = 0; // continue operation in idle mode
+    U2MODEbits.STSEL = 0; // 1 stop bit
+    U2MODEbits.PDSEL0 = 0;
+    U2MODEbits.PDSEL1 = 0;// 8, N, 
+    U2MODEbits.BRGH = 0;
+    //U2MODEbits.BRGH = 1;
+
+    U2MODEbits.RXINV = 0;// rx idle state = 1
+    U2MODEbits.ABAUD = 0;// no autobaud
+    U2MODEbits.LPBACK = 0; // loopback mode disabled
+    U2MODEbits.WAKE = 0; // wakeup disable
+    U2MODEbits.UEN0 = 0;
+    U2MODEbits.UEN1 = 0;
+    U2MODEbits.RTSMD = 1;// rts mode 
+    U2MODEbits.IREN = 0;// irda disabled
+    U2STAbits.ADDEN = 0; // address mode disabled
+      
+    U2STAbits.URXISEL0 = 1;
+    U2STAbits.URXISEL1 = 1; // interrupt any data received
+    
+    U2STAbits.UTXEN = 1; // transmit enabled
+    U2STAbits.UTXBRK = 0; // break disabled
+    
+    U2STAbits.UTXISEL0 = 1;
+    U2STAbits.UTXISEL1 = 0; // interrupt when txregister becomes empty
+    
+    
+     
+    U2BRG = 51 ; // 3.340277778 //run at 9600
+}
+
  
  
     
@@ -557,13 +564,57 @@ unsigned short read16_T3()
     }
     
     
-    void main()
+    void main(void)
     {   
-        
+        CONSOLE_INIT();
+        TRISBbits.TRISB8 = 1;      //SCL. Set as input.
+
+      TRISBbits.TRISB9 = 1;      //SDA. Set as input.
+
+      TRISBbits.TRISB7 = 0; //UART1 transmit the value (RB0)
+      
+    //Interrupts
+      
+    INTCON1bits.NSTDIS = 1; //Disable nested interrupts
+    //INTCON2bits.INT0EP = 0; //interrupt 0 on posedge
+   // IFS0bits.T2IF = 0; //Clear Timer2 interrupt flag
+    //IEC0bits.T2IE = 1; //Enable Timer2 interrupt
+    
+     //Timer1
+    
+    //T1CONbits.TSIDL = 1;  //Doesn't stop in idle
+    T1CONbits.TCS = 1;  //Timer1 clock synchronize external clock input 
+    T1CONbits.T1ECS= 0b10;  //Timer1 LPRC clock as source
+    T1CONbits.TCKPS = 0;  //0b11 = Prescaler 256
+    T1CONbits.TON = 1;  //Timer1 On 
+    PR1=310; //Interrupts every 10ms 
+    TMR1=0;
+    
+    //Enabling interrupt flags
+    INTCON2bits.INT0EP = 0; //Detect on rising edge
+    IFS0bits.T1IF = 0;  //Clear timer1 interrupt flag
+    IEC0bits.T1IE = 1; //Enable timer1 interrupt
+    
+   // IPC0bits.T1IP = 0b111; //highest priority interrupt
+    //Set TRISA to all input, then A0 to output
+   
+    //ADC
+    AD1CON1bits.ADON =0; //Turn ADC off until needed
+    AD1CON1bits.FORM = 0b00; //Format conversion to be integer values 0 to 1023
+    AD1CON1bits.SSRC = 0b000; //Clearing SAMP bit ends sample and begins conversion
+    AD1CON1bits.SAMP = 0;  //Not currently sampling
+    AD1CON1bits.DONE = 0; //ADC conversion not done
+    AD1CON2bits.BUFM = 0; //Buffer 1 16 bit word
+    AD1CON3bits.SAMC = 0b00001; //Auto-Sample time 1TAD I dont think we are using this
+    AD1CON3bits.ADCS = 0b00001; //A/D Conversion Clock 2*Tcy idk what it should be
+    AD1CHSbits.CH0SA =0b1001; //Channel 0 positive input AN9 MUXA
+    AD1CHSbits.CH0SB =0b1001; //Channel 0 positive input AN9 MUXB
+    ////******************///****************////
+  //  CONSOLE_PutString((char*)"a");   
     RadioINIT();
     GetNodeNumber();
     WaitForStart();
-    
+    CONSOLE_PutString((char*)"Initialized");
      unsigned short i; //store lower byte
      unsigned short j; //store higher byte
      unsigned short k;
@@ -573,7 +624,8 @@ unsigned short read16_T3()
    
      unsigned short q; //uv index
      unsigned short w;
-     
+    char RXmsg[25];//initialize a string to hold values from radio & local sensors
+    char TXmsg[2]; //confirmation
      unsigned short s1;
       unsigned short s2;
       unsigned short s3;
@@ -581,7 +633,7 @@ unsigned short read16_T3()
         unsigned short s5;
         unsigned short s6;
         unsigned short s7;
-        
+       CONSOLE_PutString((char*)"c"); 
       I2C_Master_Init(100000);      //Initialize I2C Master with 100KHz clock
     
      reset(); //reset SI1145, uv light
@@ -602,6 +654,48 @@ unsigned short read16_T3()
 
         while(1)
         {
+            
+                if((nodeNumber == '2' || nodeNumber == '7') && (clock == (totalPeriod/10)))//(clock == 6000)//
+                {
+                    CONSOLE_PutString((char*)"X IN SENDU");
+                    send_flag = 1;   
+                }
+                if((nodeNumber == '3' || nodeNumber == '8') && clock == ((totalPeriod/10)*3))
+                {
+                    send_flag = 1;       
+                }
+                if((nodeNumber == '4' || nodeNumber == '9') && clock == ((totalPeriod/10)*5))
+                {
+                    send_flag = 1;
+                }
+                if((nodeNumber == '5' || nodeNumber == '10') && clock == ((totalPeriod/10)*7))
+                {
+                    send_flag = 1;
+                }
+            
+            
+            
+            
+          if (send_flag) { 
+           CONSOLE_PutString((char*)"X Send flag 1U");
+        //reconsider life choices
+        AD1CON1bits.ADON = 1; //ADC on
+        AD1CON1bits.SAMP = 1; //ADC starts sampling 
+        /*while(ADCcount<5000){
+            ADCcount++;
+        }*/
+        ADCcount=0;
+        AD1CON1bits.SAMP =0; //ADC start converting
+        /*while (!AD1CON1bits.DONE){ //Waiting for conversion to be done given a shit
+        }*/
+        AD1CON1bits.ADON =0; //turn ADC off
+        AD1CON1bits.DONE = 0; //Reset ADC
+        ADCval=ADC1BUF0; //Converted value
+        if(ADCval <= 320){ //1.466Volts
+            //Code to put B in Uart transmission
+           
+        }  
+     CONSOLE_PutString((char *)"I2C Begin");   
   ////////////below temp
      I2C_Master_Start();
      i=ReadValue(0xEC,0xFA,0xED,0); //change to 2d  , 19-12
@@ -610,7 +704,7 @@ unsigned short read16_T3()
      I2C_Master_Start();
      j=ReadValue(0xEC,0xFB,0xED,0); //change to 2d   11-4
      I2C_Master_Stop();
-             ;
+             
      I2C_Master_Start();
      k=ReadValue(0xEC,0xFc,0xED,0); //change to 2d   11-4
      I2C_Master_Stop();
@@ -636,9 +730,28 @@ unsigned short read16_T3()
      w=ReadValue(0xC0,0x2C,0xC1,0);
 
      I2C_Master_Stop();     
-     
-       if(send_flag == 1)
-      {
+     CONSOLE_PutString((char *)"I2C End");
+    while(confirm_count++ <=  4)
+    {
+        if(confirmFlag == 1)
+        {
+            if(conf[1] == '+')
+            {
+                CONSOLE_PutString((char *)"Increment Clock");
+                totalPeriod = totalPeriod + 1100;
+            }
+            else if(conf[1] == '-')
+            {
+                CONSOLE_PutString((char *)"Decrement Clock");
+                totalPeriod = totalPeriod - 1100;
+            }
+            else if(conf[1] == 'N')
+            {
+                CONSOLE_PutString((char *)"No Change");
+                break;
+            }
+            confirmFlag = 0;
+        }
         s1=i; //temp
         s2=j;
         s3=k;
@@ -648,33 +761,46 @@ unsigned short read16_T3()
         
         s6=q;
         s7=w;
-        
+        //CONSOLE_PutString((char *)"Send Uart");
         send_uart(s1,s2,s3,s4,s5,s6,s7);
-        }
-
+        uint16_t c = clock + 50;//wait 20ms
+        while(c>clock);
+               
+        
+    }
+    send_flag = 0;
+    confirm_count = 0;
        
         
         //  Write8(0xc0,0x00,0b01100110);
-
-        while (TMR1<DELAY) //delay function
-        {
-
-
-        }
-
-
-        }
-
+    
+    TMR1=0;
     }
-
-
+    }
+    }
+void __attribute__((__interrupt__,no_auto_psv)) _T1Interrupt(void)
+{
+    //CONSOLE_PutString((char *)"inc\n");
+    if (IFS0bits.T1IF && (clock == totalPeriod))  //Source check for TMRO
+    {
+        //send_flag = 1;
+        clock = 0;
+        IFS0bits.T1IF = 0;
+    }
+    clock++;
+    IFS0bits.T1IF = 0;
+    //char cl[10];
+    //sprintf(cl,"%d\n\r",clock);
+    //CONSOLE_PutString((char *)cl);
+}
+    /*
   void __attribute__((__interrupt__,no_auto_psv)) _T2Interrupt(void)
 {
     
     
     if(counter>=10000) //Delay transmitting output if PR2 is not long enough //30000
        {
-           send_flag = 1; //Set flag high to output data
+           //Set flag high to output data
             
             IFS0bits.T2IF = 0; //Empty flag to exit Timer2
             
@@ -684,61 +810,8 @@ unsigned short read16_T3()
        counter++;
    
 }
-
-      /*
-void CONSOLE_PutString(char* str)
-{
-    uint8_t c;
-
-    while( c = *str++ )
-        CONSOLE_Put(c);
-}
-
-void CONSOLE_Put(uint8_t c)
-{
-    while( !CONSOLE_IsPutReady() );
-        TREG2 = c;
-        
-
-}
-
-void CONSOLE_INIT(void)
-{
-    
-     //A function that initializes UART 2 for use of the Console
-    
-    /// for uart 2 
-    U2MODEbits.UARTEN = 1;//enable UART
-    U2MODEbits.USIDL = 0; // continue operation in idle mode
-    U2MODEbits.STSEL = 0; // 1 stop bit
-    U2MODEbits.PDSEL0 = 0;
-    U2MODEbits.PDSEL1 = 0;// 8, N, 
-    U2MODEbits.BRGH = 0;
-    //U2MODEbits.BRGH = 1;
-
-    U2MODEbits.RXINV = 0;// rx idle state = 1
-    U2MODEbits.ABAUD = 0;// no autobaud
-    U2MODEbits.LPBACK = 0; // loopback mode disabled
-    U2MODEbits.WAKE = 0; // wakeup disable
-    U2MODEbits.UEN0 = 0;
-    U2MODEbits.UEN1 = 0;
-    U2MODEbits.RTSMD = 1;// rts mode 
-    U2MODEbits.IREN = 0;// irda disabled
-    U2STAbits.ADDEN = 0; // address mode disabled
-      
-    U2STAbits.URXISEL0 = 1;
-    U2STAbits.URXISEL1 = 1; // interrupt any data received
-    
-    U2STAbits.UTXEN = 1; // transmit enabled
-    U2STAbits.UTXBRK = 0; // break disabled
-    
-    U2STAbits.UTXISEL0 = 1;
-    U2STAbits.UTXISEL1 = 0; // interrupt when txregister becomes empty
-    
-    
+*/
      
-    U2BRG = 51 ; // 3.340277778 //run at 9600
-}*/
 
 void RadioINIT(void)
 {
@@ -814,7 +887,22 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _U1RXInterrupt(void)
     U1STAbits.OERR = 0;
    // RadioTX((char *)"\n\rwriting RX_char ");
     RX_char = (U1RXREG);
+    CONSOLE_PutString((char *)RX_char);
+    if((pairedFlag == 1) && (RX_char == nodeNumber))
+    {
+        confCount = 0;
+        conf[0] = RX_char;
+        confCount++;
+    }
+    else if(confCount == 1)
+    {
+        conf[confCount] = RX_char;
+        confirmFlag = 1;
+        confCount = 0;
+    }
     
+    
+
     new_data = 1;
     IFS0bits.U1RXIF = 0;
 }
@@ -842,3 +930,4 @@ void WaitForStart()
         
     }
 }
+    
