@@ -106,7 +106,7 @@ void Write(unsigned a,unsigned b,unsigned c);
 unsigned short I2C_Master_Read(unsigned short a);
 void Read(unsigned q,unsigned w,unsigned e);
 
-float MPH_Calculate(void);
+uint16_t MPH_Calculate(void);
 uint16_t MPH_Average(uint16_t mph_calc[120], uint16_t countSpeed);
 uint16_t is_gust(uint16_t mph_calc[120], uint16_t countSpeed);
 uint16_t airQualityAverage(void);
@@ -573,11 +573,11 @@ bool Radio_IsPutReady()
     }
 }
   
-float MPH_Calculate(void)
+uint16_t MPH_Calculate(void)
 {
-    float RPM = 0;
+    uint16_t RPM = 0;
 
-    RPM = pulses * 60;
+    RPM = pulses * 30;
     RPM /= 12;
     RPM *= 60;
     RPM *= 6.1;
