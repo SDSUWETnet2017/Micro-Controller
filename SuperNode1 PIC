@@ -113,7 +113,7 @@ uint16_t airQualityAverage(void);
 void getAngle(void);
 void setDirection(void);
 void checkHighFlag();
-void clearGlobalData(void);;
+void clearGlobalData(void);
 
 void __attribute__((__interrupt__,no_auto_psv)) _T1Interrupt(void);
 void __attribute__((interrupt, shadow, no_auto_psv)) _U1RXInterrupt();
@@ -129,7 +129,7 @@ int new_data = 0;
 char RX_char = 0;
 char offset_char = 0;
 
-volatile bool pairFlag = 0;
+volatile bool pairFlag = 1;
 volatile uint16_t clock = 0;
 volatile uint16_t totalPeriod = 62600;//total period in 10s of ms
 volatile bool endCycle = false;
@@ -233,7 +233,6 @@ void main(void)
         if(calc_flag == 1)
         {
            MPH[countSpeed] = MPH_Calculate();
-           //CONSOLE_PutString((char *)"calc falg");
            countSpeed++;
            calc_flag = 0;
         }
@@ -244,8 +243,7 @@ void main(void)
         }
         if(send_flag == true)
         {
-            //CONSOLE_PutString((char *)"send falg");
-           I2CStart();
+            I2CStart();
         }
         
         if(endCycle == true)
@@ -660,7 +658,7 @@ void getAngle()
 {
     if(send_flag == true)
     {
-    CONSOLE_PutString((char *)"angle");
+    
         ANGLE = ii;  //set i2c value to ANGLE (do i need this?)
         //ANGLE =(i<<6)+(j&0x3F); //Store MSB and LSB i2c values together into one variable (i2c values)
         if(array_counter < array_size)   //array_size is set to 100 samples (set to 300 samples for 10 min)    
@@ -871,7 +869,7 @@ void I2C_Master_Init(const unsigned long c)
 
 void I2C_Master_Wait()
 {
-    char c = clock + 100;
+    int c = clock + 100;
     while (((SSP1STAT & 0x04) || (SSP1CON2 & 0x1F)) && (c > clock)); //Transmit is in progress  // Once SSP1STAT and SSP1CON2 goes high, then proceed
 }
 
