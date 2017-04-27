@@ -226,28 +226,38 @@ void main(void)
     uint8_t delayer = clock;
     while(delayer + 2 > clock);
     RadioTX((char *)"SSSSSSSSSSSSSSSSSSSSSSSSSSSS"); //start subnode operation
+    delayer = clock;
+    while(delayer + 20 > clock);
     clock = 0;
     
     while(1)
     {
+        
         if(calc_flag == 1)
         {
+           //CONSOLE_PutString((char *)"Begin calc_flagU");
            MPH[countSpeed] = MPH_Calculate();
            countSpeed++;
            calc_flag = 0;
+          // CONSOLE_PutString((char *)"End calc_flagU");
         }
         if(ADC_SAMPLING == true)
         {
+            //CONSOLE_PutString((char *)"Begin ADC_SAMP");
             AD1CON1bits.SAMP = 0; // End A/D sampling and start conversion
             ADC_SAMPLING == false;
+            //CONSOLE_PutString((char *)"End ADC_SAMP");
         }
         if(send_flag == true)
         {
+           // CONSOLE_PutString((char *)"Begin send_flagU");
             I2CStart();
+           // CONSOLE_PutString((char *)"End send_flagU");
         }
         
         if(endCycle == true)
         {
+           // CONSOLE_PutString((char *)"Begin endCycleU");
             mphAverage = MPH_Average(MPH, countSpeed);
             gust = is_gust(MPH, countSpeed);
             countSpeed = 0;
@@ -259,6 +269,7 @@ void main(void)
              
             endCycle = false;
             clearGlobalData();
+           // CONSOLE_PutString((char *)"End endCycleU");
         }
         
         
